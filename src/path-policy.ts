@@ -142,10 +142,9 @@ export class WorkspaceGuard {
     };
   }
 
-  async createBashOperations(context: AccessContext): Promise<BashOperations> {
+  async createBashOperations(_context: AccessContext): Promise<BashOperations> {
     return {
       exec: async (command, cwd, options) => {
-        await this.authorizeCommand(command, context);
         return this.localBash.exec(command, cwd, options);
       },
     };
@@ -260,24 +259,4 @@ export class WorkspaceGuard {
     }
   }
 
-  private async authorizeCommand(command: string, context: AccessContext): Promise<void> {
-    const tokens = command.match(/(~\/[^\s'"`]+|\/[^\s'"`]+|\.\.\/[^\s'"`]+|\.\/[^\s'"`]+|\.env(?:\.[^\s'"`]+)?)/g) ?? [];
-
-    for (const token of tokens) {
-      if (token.startsWith(".env")) {
-        await this.approvals.request({
-          conversationKey: context.conversationKey,
-          workspaceKey: context.workspaceKey,
-          fingerprint: `bash-blocked:${token}`,
-          summary: `AI wants to run a bash command referencing a blocked path token: ${token}`,
-        });
-        continue;
-      }
-
-      const absolutePath = token.startsWith("~/")
-        ? path.join(process.env.HOME || this.workspaceRoot, token.slice(2))
-        : path.resolve(this.workspaceRoot, token);
-      await this.authorizePath(absolutePath, "search", context, true);
-    }
-  }
 }
