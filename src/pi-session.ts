@@ -41,7 +41,6 @@ import {
   filterOutPicordExtensions,
   getPicordPackageRoot,
 } from "./pi-resource-loader.js";
-import { createSafeCustomTools } from "./safe-tools.js";
 import { loadMCPTools, closeMCPConnections } from "./mcp-integration.js";
 import type {
   ModelSummary,
@@ -1421,7 +1420,6 @@ export class PiSessionPool {
       noTools: "builtin",
       customTools: [
         ...tools,
-        ...createSafeCustomTools(workspaceState.guard, accessContext),
         ...(await loadMCPTools({ exaApiKey: this.config.exaApiKey })).tools.map((t) => t.tool),
       ],
       scopedModels: scopedModels.length > 0 ? scopedModels : undefined,
