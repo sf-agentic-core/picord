@@ -578,24 +578,6 @@ export class LiveDiscordRunRenderer {
       lines.push("🧠 Thinking...", "");
     }
 
-    const contextLine = this.runContextUsage
-      ? this.runContextUsage.tokens === null
-        ? `- Context: estimating / ${this.runContextUsage.contextWindow.toLocaleString()}`
-        : `- Context: ${this.runContextUsage.tokens.toLocaleString()} / ${this.runContextUsage.contextWindow.toLocaleString()} (${(this.runContextUsage.percent ?? 0).toFixed(1)}%)`
-      : undefined;
-
-    const metadata = [
-      this.runModelReference ? `- Model: ${this.runModelReference}` : undefined,
-      this.runThinkingLevel && (this.runThinkingLevel !== "off" || this.runSupportsThinking === true)
-        ? `- Thinking: ${this.runThinkingLevel === "off" ? "none" : this.runThinkingLevel}`
-        : undefined,
-      contextLine,
-    ].filter((line): line is string => Boolean(line));
-
-    if (metadata.length > 0) {
-      lines.push(metadata.join("\n"));
-    }
-
     const rendered = lines.join("\n").trim();
     return rendered || RESPONSE_PLACEHOLDER;
   }
