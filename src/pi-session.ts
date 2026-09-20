@@ -41,7 +41,6 @@ import {
   filterOutPicordExtensions,
   getPicordPackageRoot,
 } from "./pi-resource-loader.js";
-import { createSafeCustomTools } from "./safe-tools.js";
 import { loadMCPTools, closeMCPConnections } from "./mcp-integration.js";
 import type {
   ModelSummary,
@@ -204,7 +203,7 @@ interface PendingOAuthLogin {
 
 export class PiSessionPool {
   private readonly authStorage = AuthStorage.create();
-  private readonly modelRegistry = ModelRegistry.create(this.authStorage);
+  private readonly modelRegistry = ModelRegistry.create(this.authStorage, process.env.PI_CODING_AGENT_DIR ? path.join(process.env.PI_CODING_AGENT_DIR, "models.json") : undefined);
   private readonly sessions = new Map<string, SessionHandle>();
   private readonly queues = new Map<string, Promise<unknown>>();
   private readonly workspaces = new Map<string, WorkspaceState>();
@@ -1450,7 +1449,6 @@ export class PiSessionPool {
       noTools: "builtin",
       customTools: [
         ...tools,
-        ...createSafeCustomTools(workspaceState.guard, accessContext),
         ...(await loadMCPTools({ exaApiKey: this.config.exaApiKey })).tools.map((t) => t.tool),
       ],
       scopedModels: scopedModels.length > 0 ? scopedModels : undefined,

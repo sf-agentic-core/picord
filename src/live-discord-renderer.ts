@@ -1,5 +1,4 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder, type ChatInputCommandInteraction, type Message } from "discord.js";
-import { toDiscordChunks } from "./conversation.js";
 
 const FLUSH_INTERVAL_MS = 75;
 const RESPONSE_PLACEHOLDER = "_thinking…_";
@@ -95,16 +94,30 @@ export function normalizeDiscordText(text: string): string {
     .trim();
 }
 
-export function chunkDiscordMarkdown(text: string, maxLength: number = 2000): string[] {
-  const baseChunks = toDiscordChunks(text, maxLength);
-  const chunks: string[] = [];
-  let carryPrefix = "";
+// Reserve for the "\n```" that ensureClosedCodeFence may append, so a
+// carried code-fence prefix never pushes a chunk past Discord's limit.
+const FENCE_RESERVE = 4;
 
-  for (const baseChunk of baseChunks) {
-    const withPrefix = `${carryPrefix}${baseChunk}`;
-    const closed = ensureClosedCodeFence(withPrefix).trim();
-    chunks.push(closed || "Done.");
-    carryPrefix = reopenFencePrefix(withPrefix);
+export function chunkDiscordMarkdown(text: string, maxLength: number = 2000): string[] {
+  const chunks: string[] = [];
+  let carry = "";
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    const budget = Math.max(maxLength - carry.length - FENCE_RESERVE, 1);
+    let cut: number;
+    if (remaining.length <= budget) {
+      cut = remaining.length;
+    } else {
+      const slice = remaining.slice(0, budget);
+      cut = Math.max(slice.lastIndexOf("\n"), slice.lastIndexOf(" "));
+      if (cut <= 0) cut = budget; // hard split; progress guaranteed
+    }
+    const withPrefix = `${carry}${remaining.slice(0, cut)}`;
+    chunks.push(ensureClosedCodeFence(withPrefix).trim() || "Done.");
+    carry = reopenFencePrefix(withPrefix);
+    if (carry.length >= maxLength) carry = ""; // pathological fence, drop reopen
+    remaining = remaining.slice(cut).trim();
   }
 
   return chunks.length > 0 ? chunks : ["Done."];
@@ -578,24 +591,6 @@ export class LiveDiscordRunRenderer {
       lines.push("🧠 Thinking...", "");
     }
 
-    const contextLine = this.runContextUsage
-      ? this.runContextUsage.tokens === null
-        ? `- Context: estimating / ${this.runContextUsage.contextWindow.toLocaleString()}`
-        : `- Context: ${this.runContextUsage.tokens.toLocaleString()} / ${this.runContextUsage.contextWindow.toLocaleString()} (${(this.runContextUsage.percent ?? 0).toFixed(1)}%)`
-      : undefined;
-
-    const metadata = [
-      this.runModelReference ? `- Model: ${this.runModelReference}` : undefined,
-      this.runThinkingLevel && (this.runThinkingLevel !== "off" || this.runSupportsThinking === true)
-        ? `- Thinking: ${this.runThinkingLevel === "off" ? "none" : this.runThinkingLevel}`
-        : undefined,
-      contextLine,
-    ].filter((line): line is string => Boolean(line));
-
-    if (metadata.length > 0) {
-      lines.push(metadata.join("\n"));
-    }
-
     const rendered = lines.join("\n").trim();
     return rendered || RESPONSE_PLACEHOLDER;
   }
@@ -609,7 +604,11 @@ export class LiveDiscordRunRenderer {
         const payload: LiveMessagePayload = { content: chunks[index] || "Done." };
         const existing = this.handles[index];
         if (existing) {
-          await existing.edit(payload);
+          try {
+            await existing.edit(payload);
+          } catch (error) {
+            console.warn(`[picord] message edit failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
           continue;
         }
         const handle = index === 0

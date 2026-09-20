@@ -58,7 +58,7 @@ describe("live discord renderer helpers", () => {
     expect(combined.indexOf("Second message.")).toBeLessThan(combined.indexOf("✅ `read` `README.md`"));
   });
 
-  it("renders run metadata for model, thinking, context usage, and skill activity", async () => {
+  it("omits run metadata footer but keeps skill context", async () => {
     const payloads: LiveMessagePayload[] = [];
     const makeHandle = (initial: LiveMessagePayload) => {
       payloads.push(initial);
@@ -83,9 +83,10 @@ describe("live discord renderer helpers", () => {
     });
     await renderer.finalize("Done.");
 
-    expect(payloads.some((payload) => payload.content?.includes("Model: openai-codex/gpt-5.3-codex"))).toBe(true);
-    expect(payloads.some((payload) => payload.content?.includes("Thinking: high"))).toBe(true);
-    expect(payloads.some((payload) => payload.content?.includes("Context: 12,345 / 272,000 (4.5%)"))).toBe(true);
+    // Footer (Model/Thinking/Context) fue eliminado intencionalmente del output de Discord.
+    expect(payloads.some((payload) => payload.content?.includes("Model: openai-codex/gpt-5.3-codex"))).toBe(false);
+    expect(payloads.some((payload) => payload.content?.includes("Thinking: high"))).toBe(false);
+    expect(payloads.some((payload) => payload.content?.includes("Context: 12,345 / 272,000 (4.5%)"))).toBe(false);
     expect(payloads.some((payload) => payload.content?.includes("🧠 skill `brainstorming`"))).toBe(true);
   });
 
