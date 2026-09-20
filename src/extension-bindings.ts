@@ -11,7 +11,7 @@ interface ExtensionBindingOptions {
   onLog?: (level: NotificationLevel, message: string) => void;
 }
 
-const DISCORD_SAFE_THEME = {} as Theme;
+const DISCORD_SAFE_THEME = new Proxy({}, { get: () => (...args: any[]) => args[args.length - 1] }) as unknown as Theme;
 
 function formatNotificationPrefix(level: NotificationLevel): string {
   switch (level) {
