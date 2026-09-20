@@ -85,7 +85,21 @@ function buildCavemanPrompt(cavemanLevel: CavemanLevel): string {
   };
   return prompts[cavemanLevel] ?? "";
 }
-function buildSystemPrompt(config: PicordRuntimeConfig): string {
+/**
+ * Discord transport + environment notes for the system prompt.
+ *
+ * DELIBERATELY persona-free. The voice lives in the harness
+ * (`~/.pi/agent/APPEND_SYSTEM.md`, sourced from
+ * pi-global-harness/persona/SOUL.md) and reaches the prompt through the
+ * resource loader's own discovery.
+ *
+ * This block used to open with "Sassy Discord assistant. Dry confidence,
+ * playful edge. Prioritize clarity over personality." — a hardcoded persona
+ * that (a) contradicted the soul (which is warm, curious and effusive) and
+ * (b) came FIRST in the array, so it outranked it. If you feel like adding a
+ * tone to this block, add it to the soul instead: one identity, one place.
+ */
+export function buildTransportPrompt(config: PicordRuntimeConfig): string {
   const toolLabel =
     config.toolMode === "coding"
       ? "read, bash, edit, write, grep, find, ls"
@@ -96,7 +110,7 @@ function buildSystemPrompt(config: PicordRuntimeConfig): string {
     "Guild channels represent projects/workspaces.",
     "Discord threads are task sessions. Use the thread name as the session title.",
     "Respect workspace boundaries. Do not try to access files outside the configured workspace unless the owner approves it.",
-    "Sassy Discord assistant. Dry confidence, playful edge. Prioritize clarity over personality.\n\n" + buildCavemanPrompt(config.cavemanLevel),
+    buildCavemanPrompt(config.cavemanLevel),
     `Available tools: ${toolLabel}.`,
     config.systemPromptAppend,
   ]
@@ -1310,7 +1324,22 @@ export class PiSessionPool {
       agentDir: path.join(homedir(), ".pi", "agent"),
       settingsManager,
       noThemes: true,
-      appendSystemPrompt: [buildSystemPrompt(this.config)],
+      // ⚠️ `appendSystemPrompt` must stay UNSET here. Setting it makes the
+      // loader skip `discoverAppendSystemPromptFile()` entirely
+      // (resource-loader: `this.appendSystemPromptSource ?? discover(...)`),
+      // so `~/.pi/agent/APPEND_SYSTEM.md` — Tachikoma's soul — would NEVER
+      // reach the prompt. Silently: no error, no warning. Verified: with
+      // `appendSystemPrompt` set the block is 35 B of transport notes and
+      // nothing else.
+      //
+      // `appendSystemPromptOverride` gets the discovered content as `base` and
+      // returns it extended, so the soul keeps its own precedence rules
+      // (workspace `.pi/APPEND_SYSTEM.md` replaces the global one) and our
+      // transport notes are appended AFTER the voice.
+      appendSystemPromptOverride: (base: string[]) => [
+        ...base,
+        buildTransportPrompt(this.config),
+      ],
       extensionsOverride: (base) => filterOutPicordExtensions(base),
       additionalSkillPaths: [picordSkillsPath, globalPiExtensionsPath],
     });
